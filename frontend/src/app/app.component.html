@@ -1,0 +1,185 @@
+<div class="page-shell">
+  <div class="hero">
+    <h1>Pillway Transfer</h1>
+    <p>Quickly change your preferred pharmacy and keep your request up to date. Select a service, choose a pharmacy, and confirm the transfer.</p>
+  </div>
+
+  <!-- AUTH -->
+  <div *ngIf="!isLoggedIn" class="card">
+    <h2>{{ isSignup ? 'Sign Up' : 'Login' }}</h2>
+
+    <div class="field-row">
+      <div>
+        <label class="field-label">Email</label>
+        <input [(ngModel)]="email" placeholder="Enter your email" />
+      </div>
+      <div>
+        <label class="field-label">Password</label>
+        <input [(ngModel)]="password" type="password" placeholder="Enter your password" />
+      </div>
+      <div *ngIf="isSignup">
+        <label class="field-label">Name</label>
+        <input [(ngModel)]="name" placeholder="Enter your name" />
+      </div>
+    </div>
+
+    <div class="actions">
+      <button
+        *ngIf="isSignup"
+        (click)="signup()"
+        [disabled]="isSignupLoading">
+        {{ isSignupLoading ? 'Please wait...' : 'Sign Up' }}
+      </button>
+
+      <button
+        *ngIf="!isSignup"
+        (click)="login()"
+        [disabled]="isLoginLoading">
+        {{ isLoginLoading ? 'Please wait...' : 'Login' }}
+      </button>
+
+      <button class="secondary" (click)="toggleMode()">
+        {{ isSignup ? 'Already have account? Login' : 'New user? Sign up' }}
+      </button>
+    </div>
+
+    <p *ngIf="isSignup && signupMessage" style="color:#ef4444; margin-top:16px;">
+      {{ signupMessage }}
+    </p>
+
+    <p *ngIf="!isSignup && loginMessage" style="color:#ef4444; margin-top:16px;">
+      {{ loginMessage }}
+    </p>
+  </div>
+
+  <!-- LOGOUT -->
+  <button *ngIf="isLoggedIn" class="secondary" (click)="logout()" style="position:fixed;top:20px;right:20px;">
+    Logout
+  </button>
+
+  <!-- FLOW -->
+  <div *ngIf="isLoggedIn" [ngSwitch]="step">
+
+    <!-- STEP 1 -->
+    <div *ngSwitchCase="1" [formGroup]="form" class="card">
+      <h2>Select Service</h2>
+      <div class="radio-group">
+        <label class="radio-option">
+          <input type="radio" formControlName="serviceType" value="transfer" />
+          <div class="radio-meta">
+            <strong>Transfer</strong>
+            <span>Move your request to a new pharmacy and keep your details updated.</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="actions">
+        <button (click)="next()">Continue</button>
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div *ngSwitchCase="2" [formGroup]="pharmacyGroup" class="card">
+      <h2>Search Pharmacy</h2>
+      <p style="color:#475569; margin-top:0;">Look up pharmacies or hospitals and choose the one you want to save.</p>
+
+      <div class="suggestion-container">
+        <input
+          formControlName="address"
+          placeholder="Search pharmacy or hospital"
+          (input)="onAddressInput($any($event.target).value)"
+          autocomplete="off"
+        />
+
+        <div class="suggestions" *ngIf="searchPredictions.length">
+          <div
+            class="suggestion"
+            *ngFor="let prediction of searchPredictions"
+            (click)="selectPrediction(prediction)"
+          >
+            <div class="suggestion-title">{{ prediction.name || prediction.description }}</div>
+            <div class="suggestion-subtitle">{{ prediction.formatted_address || prediction.description }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="map-section">
+        <div #mapContainer class="map-container"></div>
+      </div>
+
+      <div class="current-pharmacy" *ngIf="existingRequest?.pharmacy_name || existingRequest?.address">
+        <h3>Your current pharmacy</h3>
+        <div class="review-row">
+          <div class="review-card">
+            <p class="review-label">Pharmacy</p>
+            <p>{{ existingRequest?.pharmacy_name || existingRequest?.name || 'Not available' }}</p>
+          </div>
+          <div class="review-card">
+            <p class="review-label">Address</p>
+            <p>{{ existingRequest?.address || 'Not available' }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="secondary" (click)="back()">Back</button>
+        <button (click)="next()" [disabled]="!pharmacyGroup.get('address')?.value">Continue</button>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" *ngIf="showChangeConfirm">
+      <div class="modal-content">
+        <h3>Change saved pharmacy?</h3>
+        <div class="review-row">
+          <div class="review-card">
+            <p class="review-label">Current pharmacy</p>
+            <p>{{ existingRequest?.pharmacy_name || existingRequest?.name || 'Unknown' }}</p>
+            <p class="review-label">Current address</p>
+            <p>{{ existingRequest?.address || 'No saved address found' }}</p>
+          </div>
+          <div class="review-card">
+            <p class="review-label">New pharmacy</p>
+            <p>{{ pendingPrediction?.name || pendingPrediction?.description || 'Unknown' }}</p>
+            <p class="review-label">New address</p>
+            <p>{{ pendingPrediction?.formatted_address || pendingPrediction?.description || pendingPrediction?.name }}</p>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="secondary" (click)="confirmChangeSelection(false)">Cancel</button>
+          <button (click)="confirmChangeSelection(true)">Confirm</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div *ngSwitchCase="3" class="card">
+      <h2>Review</h2>
+      <div class="review-row">
+        <div class="review-card">
+          <p class="review-label">Pharmacy name</p>
+          <p>{{ form.value.pharmacy?.name || 'Not selected yet' }}</p>
+        </div>
+        <div class="review-card">
+          <p class="review-label">Pharmacy address</p>
+          <p>{{ form.value.pharmacy?.address || 'Not selected yet' }}</p>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="secondary" (click)="back()">Back</button>
+        <button (click)="submit()" [disabled]="isSubmitting">
+          {{ isSubmitting ? 'Submitting...' : 'Confirm' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- STEP 4 -->
+    <div *ngSwitchCase="4" class="card">
+      <h2>✅ Transfer complete!</h2>
+      <p>Your request has been submitted successfully. You can restart the process or log out when ready.</p>
+      <div class="actions">
+        <button class="secondary" (click)="restart()">Start Again</button>
+      </div>
+    </div>
+
+  </div>
+</div>
